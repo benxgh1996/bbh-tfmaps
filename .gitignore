@@ -24,3 +24,13 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# Packages #
+############
+*.7z
+*.dmg
+*.gz
+*.iso
+*.jar
+*.rar
+*.tar
+*.zip
