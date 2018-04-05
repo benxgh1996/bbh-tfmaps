@@ -1,3 +1,26 @@
 *txt
 *png
 *pdf
+
+# IDE
+######################
+.idea
+*.iml
+*.xml
+
+# OS generated files #
+######################
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Python
+.ipynb_checkpoints
+__pycache__/
+*.py[cod]
+*$py.class
+
