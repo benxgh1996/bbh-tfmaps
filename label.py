@@ -6,21 +6,75 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 import tkMessageBox as msg
 from utilsWaveform import *
+from tfmap import TfMap
+import os
+import inspect as ins
+
 
 MOTHER_FREQ = 0.5
 MAX_SCALE = 512
-FIG_WIDTH, FIG_HEIGHT = 7.6, 5.8
+# FIG_WIDTH, FIG_HEIGHT = 7.6, 5.8
+FIG_WIDTH, FIG_HEIGHT = 6.8, 5.2
 # Default figure size
 # FIG_WIDTH, FIG_HEIGHT = 6.4, 4.8
+# Define useful paths.
+# The directory for this file.
+path = os.path
+BBH_DIR = path.dirname(path.abspath(__file__))
+# The directory that contains Georgia Tech waveforms.
+WAVEFORM_DIR = path.join(BBH_DIR, "..", "lvcnr-lfs", "GeorgiaTech")
+CVPROJ_PATH = path.dirname(ins.getfile(TfMap))
 
 
-class ProjLabeller():
+# This function will save the current label for the current
+# waveform into the proj folder.
+# @Return: A boolean. True means that the current
+# 	label is added (possibly forced) to the labelled set.
+#	False means that the current label is not added to
+# 	the labelled set due to duplication.
+def saveLabel(labeller, forceSave=False):
+	# Making sure that labeller GUI has a substantial
+	# attribute that holds an instance of all the labelled
+	# time-frequency maps.
+	if labeller.labelSet is None:
+		# We should not mute any instances of the set since
+		# strictly-speaking we should only use set on immutable
+		# objects.
+		labeller.labelSet = set(np.load("all.npy"))
+		# Checking that we have loaded the labelSet with correct
+		# instance types.
+		if len(labeller.labelSet) > 0:
+			assert isinstance(labeller.labelSet[0], TfMap)
+	# Now we want to add the new labelled data to the labelSet.
+	currLabel = TfMap(labeller.waveName, labeller.iota, labeller.phi,
+					 labeller.timeArr, labeller.freqArr,
+					 labeller.intensityArr)
+	# Check whether the current label is already in the labelled
+	# set.
+	if currLabel not in labeller.labelSet:
+		labeller.labelSet.add(currLabel)
+		return True
+	else:
+		# If not forced to save label, then return False
+		# to indicate that the current label is already in the
+		# labelled set.
+		if not forceSave:
+			return False
+		# Replace the "same" old label to a new label, if forced.
+		else:
+			labeller.labelSet.remove(currLabel)
+			labeller.labelSet.add(currLabel)
+			return True
+
+
+class ProjLabeller(object):
 	# submitAction is a callback function to be invoked
 	# on submitting a user label.
 	# It has a signature of submitAction(chirpNum, chirpTimes).
 	# nextAction is a function that will be invoked on skipping
 	# the current plot.
-	def __init__(self, waveform, iotaNum, phiNum):
+	def __init__(self, waveform, iotaNum, phiNum, iotaStart,
+				 iotaEnd, phiStart, phiEnd):
 		self.win = tk.Tk()
 		self.win.title("Project Labeller")
 		# Waveform related attributes
@@ -33,12 +87,22 @@ class ProjLabeller():
 		self.totalPlotNum = self.iotaNum * self.phiNum
 		self.currIotaNum = 0
 		self.currPhiNum = 0
-		self.iotaList = np.linspace(0, pi, iotaNum, endpoint=False)
-		self.phiList = np.linspace(0, 2*pi, phiNum, endpoint=False)
+		self.iota = iotaStart
+		self.phi = phiStart
+		self.iotaList = np.linspace(iotaStart, iotaEnd, iotaNum,
+									endpoint=False, dtype=float)
+		self.phiList = np.linspace(phiStart, phiEnd, phiNum,
+								   endpoint=False, dtype=float)
 		# When displaying plotNum in a plot, remember to
 		# add 1 to it.
 		self.plotNum = 0
 		# Instantiate all the widgets on the window.
+		# labelSet is a set of labelled TfMaps that are to be
+		# loaded from a npy file.
+		self.labelSet = None
+		self.timeArr = None
+		self.freqArr = None
+		self.intensityArr = None
 		self.createWidgets()
 
 	def _destroyWindow(self):
@@ -55,7 +119,7 @@ class ProjLabeller():
 		self.actionFrame.grid(row=0, column=0)
 		# Creats the previous button that loads the previous plot.
 		self.prevButton = ttk.Button(self.actionFrame,
-									 text="Prev",
+									 text="Previous",
 									 command=self.prevAction)
 		self.prevButton.grid(row=0, column=0)
 		# The next button will proceed to window to the next plot
@@ -79,6 +143,11 @@ class ProjLabeller():
 									   text="Submit",
 									   command=self.trySubmit)
 		self.submitButton.grid(row=0, column=4)
+		# The save button
+		self.saveButton = ttk.Button(self.actionFrame,
+									 text="Save all labels",
+									 command=self.saveAllLabels)
+		self.saveButton.grid(row=0, column=5)
 
 		# The count frame
 		self.countFrame = ttk.Frame(self.win)
@@ -120,6 +189,21 @@ class ProjLabeller():
 		# self.canvas.get_tk_widget().grid(row=0, column=0)
 		self.canvas.get_tk_widget().pack()
 		self.replot()
+
+		# # Scrollbar
+		# self.scrollBar = ttk.Scrollbar(self.win, orient=tk.VERTICAL)
+		# self.scrollBar.grid(row=0, rowspan=4, column=1)
+
+	# Saves all the labels that are created on this labeller
+	# to disk.
+	def saveAllLabels(self):
+		if self.labelSet is None:
+			msg.showwarning("Warning", "You have not created any"
+									   "labels yet.")
+		else:
+			saveLabels = np.array(list(self.labelSet))
+			savePath = path.join(CVPROJ_PATH, "all.npy")
+			np.save(savePath, saveLabels)
 
 	# Reload the current canvas. This is useful on
 	# scaling the GUI window by mouse dragging.
@@ -221,12 +305,23 @@ class ProjLabeller():
 			print "{:.2f}, ".format(time),
 		print
 		print
+		# Making sure the intensityArr has values between 0 and 1.
+		assert np.logical_and(self.intensityArr >= 0,
+							  self.intensityArr <= 1).all()
+		self.currMap = TfMap(self.waveName, self.iota, self.phi,
+							 self.timeArr, self.freqArr,
+							 self.intensityArr)
+
 
 	# Replots the canvas given the updated iota and phi
 	# numbers.
 	def replot(self):
 		iota = self.iotaList[self.currIotaNum]
 		phi = self.phiList[self.currPhiNum]
+		# Updating the current iota and phi values whenever
+		# we need to do a replot.
+		self.iota = iota
+		self.phi = phi
 		iotaStr = utils.ang_to_str(iota)
 		phiStr = utils.ang_to_str(phi)
 		# The the waveform-related data
@@ -248,6 +343,10 @@ class ProjLabeller():
 								  left_t_window=-0.05,
 								  right_t_window=0.05,
 								  freq_window=500)
+		# Updating the core data of the current time-frequency map.
+		self.timeArr = times_sel
+		self.freqArr = freqs_sel
+		self.intensityArr = wplane_sel
 		# Plot the time-frequency map.
 		self.axis.clear()
 		self.axis.pcolormesh(times_sel, freqs_sel, wplane_sel,
@@ -286,8 +385,14 @@ class ProjLabeller():
 
 
 if __name__ == "__main__":
-	waveform = "GT0577.h5"
+	waveform = "GT0422.h5"
+	waveform = path.join(WAVEFORM_DIR, waveform)
+	# It's fine to use int here because I have explicitly specified
+	# the dtype for linspace in the initiator to be float.
+	iotaStart, iotaEnd = 0, pi
+	phiStart, phiEnd = 0, 2*pi
 	iotaNum = 4
 	phiNum = 4
-	labelHelper = ProjLabeller(waveform, iotaNum, phiNum)
-	labelHelper.main()
+	labelGui = ProjLabeller(waveform, iotaNum, phiNum, iotaStart,
+							iotaEnd, phiStart, phiEnd)
+	labelGui.main()
