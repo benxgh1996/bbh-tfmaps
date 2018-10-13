@@ -9,6 +9,7 @@ from utilsWaveform import *
 from tfmap import TfMap
 import os
 import inspect as ins
+from labelFunctions import *
 
 
 MOTHER_FREQ = 0.5
@@ -24,47 +25,8 @@ BBH_DIR = path.dirname(path.abspath(__file__))
 # The directory that contains Georgia Tech waveforms.
 WAVEFORM_DIR = path.join(BBH_DIR, "..", "lvcnr-lfs", "GeorgiaTech")
 CVPROJ_PATH = path.dirname(ins.getfile(TfMap))
-
-
-# This function will save the current label for the current
-# waveform into the proj folder.
-# @Return: A boolean. True means that the current
-# 	label is added (possibly forced) to the labelled set.
-#	False means that the current label is not added to
-# 	the labelled set due to duplication.
-def saveLabel(labeller, forceSave=False):
-	# Making sure that labeller GUI has a substantial
-	# attribute that holds an instance of all the labelled
-	# time-frequency maps.
-	if labeller.labelSet is None:
-		# We should not mute any instances of the set since
-		# strictly-speaking we should only use set on immutable
-		# objects.
-		labeller.labelSet = set(np.load("all.npy"))
-		# Checking that we have loaded the labelSet with correct
-		# instance types.
-		if len(labeller.labelSet) > 0:
-			assert isinstance(labeller.labelSet[0], TfMap)
-	# Now we want to add the new labelled data to the labelSet.
-	currLabel = TfMap(labeller.waveName, labeller.iota, labeller.phi,
-					 labeller.timeArr, labeller.freqArr,
-					 labeller.intensityArr)
-	# Check whether the current label is already in the labelled
-	# set.
-	if currLabel not in labeller.labelSet:
-		labeller.labelSet.add(currLabel)
-		return True
-	else:
-		# If not forced to save label, then return False
-		# to indicate that the current label is already in the
-		# labelled set.
-		if not forceSave:
-			return False
-		# Replace the "same" old label to a new label, if forced.
-		else:
-			labeller.labelSet.remove(currLabel)
-			labeller.labelSet.add(currLabel)
-			return True
+# The width for Tk entries.
+ENTRY_WIDTH = 8
 
 
 class ProjLabeller(object):
@@ -100,6 +62,7 @@ class ProjLabeller(object):
 		# labelSet is a set of labelled TfMaps that are to be
 		# loaded from a npy file.
 		self.labelSet = None
+		self.oldLabelNum = None
 		self.timeArr = None
 		self.freqArr = None
 		self.intensityArr = None
@@ -146,8 +109,8 @@ class ProjLabeller(object):
 		# The save button
 		self.saveButton = ttk.Button(self.actionFrame,
 									 text="Save all labels",
-									 command=self.saveAllLabels)
-		self.saveButton.grid(row=0, column=5)
+									 command=self.saveLabels)
+		self.saveButton.grid(row=0, column=6)
 
 		# The count frame
 		self.countFrame = ttk.Frame(self.win)
@@ -160,13 +123,25 @@ class ProjLabeller(object):
 		# The chirp count entry
 		self.chirpNum = tk.IntVar()
 		self.countEntry = ttk.Entry(self.countFrame,
-									textvariable=self.chirpNum)
+									textvariable=self.chirpNum,
+									width=ENTRY_WIDTH)
 		self.countEntry.grid(row=0, column=1)
 		# The chirp count confirmation button
 		self.countButton = ttk.Button(self.countFrame,
 									  text="Confirm",
 									  command=self.confirmCount)
 		self.countButton.grid(row=0, column=2)
+		# The force submit check button.
+		# This button will allow the user to force submit his/her
+		# current label, even if the current tfmap has been
+		# labelled before.
+		self.forceSubmit = tk.IntVar()
+		self.forceButton = tk.Checkbutton(self.countFrame,
+										  text="Force submit",
+										  variable=self.forceSubmit,
+										  bg="gray93")
+		self.forceButton.deselect()
+		self.forceButton.grid(row=0, column=3)
 
 		# The time frame.
 		self.timeFrame = ttk.Frame(self.win)
@@ -196,18 +171,26 @@ class ProjLabeller(object):
 
 	# Saves all the labels that are created on this labeller
 	# to disk.
-	def saveAllLabels(self):
+	def saveLabels(self):
 		if self.labelSet is None:
 			msg.showwarning("Warning", "You have not created any"
-									   "labels yet.")
+									   " labels yet.")
 		else:
-			saveLabels = np.array(list(self.labelSet))
+			assert len(self.labelSet) >= self.oldLabelNum
+			# Notice that we DO want to keep the attribute
+			# self.labelSet substantial even after we save all the
+			# labelled data. This means that we can keep doing our
+			# labelling after saving some previously labelled data.
 			savePath = path.join(CVPROJ_PATH, "all.npy")
-			np.save(savePath, saveLabels)
+			np.save(savePath, list(self.labelSet))
+			msg.showinfo(message="You have saved all the labelled"
+								 "data.")
 
 	# Reload the current canvas. This is useful on
 	# scaling the GUI window by mouse dragging.
 	def reloadCanvas(self):
+		# Deselect the force submit button
+		self.forceButton.deselect()
 		self.canvas.draw()
 
 	# Rendering the chirp times input entries on confirmation
@@ -246,6 +229,7 @@ class ProjLabeller(object):
 			widgetDict["chirpTime"] = tk.DoubleVar()
 			# The entry where the user inputs the chirp time.
 			widgetDict["timeEntry"] = ttk.Entry(self.timeFrame,
+												width=ENTRY_WIDTH,
 												textvariable=
 												widgetDict["chirpTime"])
 			widgetDict["timeEntry"].grid(row=rowNum, column=colNum)
@@ -259,6 +243,7 @@ class ProjLabeller(object):
 		# Making sure the timeWidgets list stores the right number
 		# of chirps.
 		assert len(self.timeWidgets) == chirpNum
+		# Retrieves the chirp times just labelled.
 		chirpTimes = []
 		for i in range(chirpNum):
 			chirpTimes.append(self.timeWidgets[i]["chirpTime"].get())
@@ -293,8 +278,32 @@ class ProjLabeller(object):
 		self.timeFrame = ttk.Frame(self.win)
 		self.timeFrame.grid(row=2, column=0)
 
+	# After the user confirms submitting the current label
+	# on the message box, do this. Essentially, this function
+	# will add the current label to the existing label set.
 	def submitAction(self, chirpNum, chirpTimes):
-		print "{}th".format(self.plotNum+1)
+		# Making sure the intensityArr has values between 0 and 1.
+		assert np.logical_and(self.intensityArr >= 0,
+							  self.intensityArr <= 1).all()
+		forceSubmit = bool(self.forceSubmit.get())
+		submitSuccess = submitLabel(self, forceSubmit)
+		if not submitSuccess:
+			msg.showwarning(message="The current label duplicates "
+									"an existing label. You might"
+									"want to choose force submit.")
+			print "label NOT submitted due to duplication."
+		# Now submitSuccess must be True.
+		elif forceSubmit:
+			msg.showinfo(message="This label has been "
+								 "force-submitted.")
+			print "Label force-submitted."
+		else:
+			msg.showinfo(message="This label has been successfully"
+								 " submitted.")
+			print "Label successfully submitted."
+
+		# Command line indication of current submit.
+		print "{}th".format(self.plotNum + 1)
 		iotaStr = utils.ang_to_str(self.iotaList[self.currIotaNum])
 		phiStr = utils.ang_to_str(self.phiList[self.currPhiNum])
 		print "{}, iota: {}, phi: {}".format(self.waveName, iotaStr,
@@ -305,17 +314,13 @@ class ProjLabeller(object):
 			print "{:.2f}, ".format(time),
 		print
 		print
-		# Making sure the intensityArr has values between 0 and 1.
-		assert np.logical_and(self.intensityArr >= 0,
-							  self.intensityArr <= 1).all()
-		self.currMap = TfMap(self.waveName, self.iota, self.phi,
-							 self.timeArr, self.freqArr,
-							 self.intensityArr)
 
 
 	# Replots the canvas given the updated iota and phi
 	# numbers.
 	def replot(self):
+		# First, deselect the force submit button.
+		self.forceButton.deselect()
 		iota = self.iotaList[self.currIotaNum]
 		phi = self.phiList[self.currPhiNum]
 		# Updating the current iota and phi values whenever
