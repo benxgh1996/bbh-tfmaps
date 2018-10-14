@@ -57,8 +57,8 @@ class ProjLabeller(object):
 		self.totalPlotNum = self.iotaNum * self.phiNum
 		self.currIotaNum = 0
 		self.currPhiNum = 0
-		self.iota = iotaStart
-		self.phi = phiStart
+		self.iota = float(iotaStart)
+		self.phi = float(phiStart)
 		self.iotaList = np.linspace(iotaStart, iotaEnd, iotaNum,
 									endpoint=False, dtype=float)
 		self.phiList = np.linspace(phiStart, phiEnd, phiNum,
@@ -68,6 +68,8 @@ class ProjLabeller(object):
 		self.plotNum = 0
 		# self.hasSubmitted records whether the user has
 		# successfully submitted any label into the labelSet.
+		# hasSubmitted will be set to False again right after
+		# we successfully save all labels to disk.
 		self.hasSubmitted = False
 
 		# Initiate labelSet and oldLabelNum.
@@ -239,8 +241,8 @@ class ProjLabeller(object):
 	# to disk.
 	def saveLabels(self):
 		if not self.hasSubmitted:
-			msg.showwarning(message="You have not created any "
-									"labels yet.")
+			msg.showwarning(message="You have not submitted any "
+									"new labels yet.")
 		else:
 			assert len(self.labelSet) >= self.oldLabelNum
 			# Notice that we DO want to keep the attribute
@@ -249,6 +251,10 @@ class ProjLabeller(object):
 			# labelling after saving some previously labelled data.
 			savePath = DATA_PATH
 			np.save(savePath, list(self.labelSet))
+			# Setting this to False can prevent the GUI from
+			# unnecessary label savings if there are no new labels
+			# submitted between two saveLabels commands.
+			self.hasSubmitted = False
 			msg.showinfo(message="You have saved all the labelled "
 								 "data.")
 			print "You have saved all the labels."
@@ -411,12 +417,12 @@ class ProjLabeller(object):
 		phi = self.phiList[self.currPhiNum]
 		# Updating the current iota and phi values whenever
 		# we replot.
-		self.iota = iota
-		self.phi = phi
+		self.iota = float(iota)
+		self.phi = float(phi)
 
 		# Select the pastButton if applicable.
-		tfMock = TfMap(self.waveName, iota, phi, None, None,
-						  None, None, None, strongCheck=False)
+		tfMock = TfMap(self.waveName, self.iota, self.phi, None,
+					   None, None, None, None, strongCheck=False)
 		if tfMock in self.oldLabelSet:
 			self.pastButton.select()
 		# Select the justButton if applicable.
@@ -441,9 +447,9 @@ class ProjLabeller(object):
 								  sample_times,
 								  mid_t=0,
 								  xnum=500,
-								  ynum=500,
+								  ynum=350,
 								  left_t_window=-0.05,
-								  right_t_window=0.05,
+								  right_t_window=0.03,
 								  freq_window=500)
 		# Updating the core data of the current time-frequency map.
 		self.timeArr = times_sel
@@ -488,13 +494,14 @@ class ProjLabeller(object):
 
 
 if __name__ == "__main__":
-	waveform = "GT0422.h5"
+	waveform = "GT0577.h5"
 	waveform = path.join(WAVEFORM_DIR, waveform)
 	# It's fine to use int here because I have explicitly specified
 	# the dtype for linspace in the initiator to be float.
 	iotaStart, iotaEnd = 0, pi
 	phiStart, phiEnd = 0, 2*pi
-	iotaNum = 4
-	phiNum = 4
-	labelGui = ProjLabeller(waveform, iotaNum, phiNum, iotaStart, iotaEnd, phiStart, phiEnd)
+	iotaNum = 6
+	phiNum = 6
+	labelGui = ProjLabeller(waveform, iotaNum, phiNum,
+							iotaStart, iotaEnd, phiStart, phiEnd)
 	labelGui.main()
