@@ -10,6 +10,7 @@ from tfmap import TfMap
 import os
 import inspect as ins
 from labelFunctions import *
+from copy import copy
 
 
 MOTHER_FREQ = 0.5
@@ -25,6 +26,7 @@ BBH_DIR = path.dirname(path.abspath(__file__))
 # The directory that contains Georgia Tech waveforms.
 WAVEFORM_DIR = path.join(BBH_DIR, "..", "lvcnr-lfs", "GeorgiaTech")
 CVPROJ_PATH = path.dirname(ins.getfile(TfMap))
+DATA_PATH = path.join(CVPROJ_PATH, "all.npy")
 # The width for Tk entries.
 ENTRY_WIDTH = 8
 
@@ -64,15 +66,55 @@ class ProjLabeller(object):
 		# When displaying plotNum in a plot, remember to
 		# add 1 to it.
 		self.plotNum = 0
-		# labelSet is a set of labelled TfMaps that are to be
-		# loaded from a npy file.
-		self.labelSet = None
-		self.oldLabelNum = None
+		# self.hasSubmitted records whether the user has
+		# successfully submitted any label into the labelSet.
+		self.hasSubmitted = False
+
+		# Initiate labelSet and oldLabelNum.
+		# labelSet is a set of historically labelled TfMaps
+		# that are to be loaded from a npy file.
+		# We should not mute any instances of labelSet since
+		# strictly-speaking we should only use set on immutable
+		# objects.
+		try:
+			self.labelSet = set(np.load(DATA_PATH))
+		except IOError, e:
+			if e.errno == 2:
+				# Handles if all.npy does not exist.
+				self.labelSet = set()
+			else:
+				raise e
+		# oldLabelNum is meant to keep a record of
+		# the number of existing labels before the current GUI
+		# session. This will be helpful for debugging by assertion
+		# later on.
+		# Also, note that oldLabelNum is updated only after
+		# loading the existing labels from disk. It will remain
+		# constant afterwards.
+		self.oldLabelNum = len(self.labelSet)
+		self.oldLabelSet = copy(self.labelSet)
+		# Checking that we have loaded the labelSet with correct
+		# instance types.
+		if self.oldLabelNum > 0:
+			assert isinstance(iter(self.labelSet).next(), TfMap)
+
+		# justLabelSet is a set that holds the successfully
+		# submitted labels in the current GUI session.
+		# It consists of 3-tuples of (waveName, iotaNum, phiNum).
+		self.justLabelSet = set()
 		self.timeArr = None
 		self.freqArr = None
 		self.intensityArr = None
+		# This chirpTimes attribute will be updated later on
+		# when the user confirms a label submission.
+		self.chirpTimes = None
 		# Instantiate all the widgets on the window.
 		self.createWidgets()
+
+	def addJustLabel(self):
+		self.justLabelSet.add((self.waveName,
+							   self.currIotaNum,
+							   self.currPhiNum))
 
 	def _destroyWindow(self):
 		self.win.quit()
@@ -164,10 +206,22 @@ class ProjLabeller(object):
 		# Each row of widgets is stored as a dict element.
 		self.timeWidgets = []
 
+		# The record frame
+		self.recordFrame = ttk.Frame(self.win)
+		self.recordFrame.grid(row=3, column=0)
+		self.pastButton = tk.Checkbutton(self.recordFrame,
+										 text="Historical label",
+										 state=tk.DISABLED)
+		self.pastButton.grid(row=0, column=0)
+		self.justButton = tk.Checkbutton(self.recordFrame,
+										 text="Submitted label",
+										 state=tk.DISABLED)
+		self.justButton.grid(row=0, column=1)
+
 		# Handling the figure
 		# Creating a frame to hold the canvas.
 		self.figFrame = ttk.Frame(self.win)
-		self.figFrame.grid(row=3, column=0)
+		self.figFrame.grid(row=4, column=0)
 		# self.figFrame.pack(side=tk.BOTTOM, fill=tk.X)
 		self.fig = Figure(figsize=(FIG_WIDTH, FIG_HEIGHT))
 		self.axis = self.fig.add_subplot(111)
@@ -184,7 +238,7 @@ class ProjLabeller(object):
 	# Save all the labels that are created on this labeller
 	# to disk.
 	def saveLabels(self):
-		if self.labelSet is None:
+		if not self.hasSubmitted:
 			msg.showwarning(message="You have not created any "
 									"labels yet.")
 		else:
@@ -193,10 +247,11 @@ class ProjLabeller(object):
 			# self.labelSet substantial even after we save all the
 			# labelled data. This means that we can keep doing our
 			# labelling after saving some previously labelled data.
-			savePath = path.join(CVPROJ_PATH, "all.npy")
+			savePath = DATA_PATH
 			np.save(savePath, list(self.labelSet))
-			msg.showinfo(message="You have saved all the labelled"
+			msg.showinfo(message="You have saved all the labelled "
 								 "data.")
+			print "You have saved all the labels."
 
 	# Reload the current canvas. This is useful on
 	# scaling the GUI window by mouse dragging.
@@ -263,7 +318,12 @@ class ProjLabeller(object):
 			chirpTimes.append(self.timeWidgets[i]["chirpTime"].get())
 			# Making sure the chirp times are in ascending order.
 			if i > 0:
-				assert chirpTimes[i] >= chirpTimes[i-1]
+				try:
+					assert chirpTimes[i] >= chirpTimes[i-1]
+				except AssertionError, e:
+					msg.showerror(message="Chirp times not in "
+										  "ascending order.")
+					raise e
 
 		# Rendering the final confirmation before submitting
 		# the user's labelling.
@@ -273,6 +333,9 @@ class ProjLabeller(object):
 			submitMsg += "Chirp {}: {} sec\n".format(i+1, chirpTimes[i])
 		submitAns = msg.askyesnocancel(message=submitMsg)
 		if submitAns:
+			# Updating the chirpTimes attribute and making sure
+			# it's an array.
+			self.chirpTimes = np.array(chirpTimes)
 			submitSuccess = self.submitAction(chirpNum, chirpTimes)
 			# Proceeding to the next plot only if we have
 			# submitted our current label successfully.
@@ -309,7 +372,7 @@ class ProjLabeller(object):
 		submitSuccess = submitLabel(self, forceSubmit)
 		if not submitSuccess:
 			msg.showwarning(message="The current label duplicates "
-									"an existing label. You might"
+									"an existing label. You might "
 									"want to choose force submit.")
 			print "label NOT submitted due to duplication."
 		# Now submitSuccess must be True.
@@ -342,12 +405,25 @@ class ProjLabeller(object):
 	def replot(self):
 		# First, deselect the force submit button.
 		self.forceButton.deselect()
+		self.pastButton.deselect()
+		self.justButton.deselect()
 		iota = self.iotaList[self.currIotaNum]
 		phi = self.phiList[self.currPhiNum]
 		# Updating the current iota and phi values whenever
 		# we replot.
 		self.iota = iota
 		self.phi = phi
+
+		# Select the pastButton if applicable.
+		tfMock = TfMap(self.waveName, iota, phi, None, None,
+						  None, None, None, strongCheck=False)
+		if tfMock in self.oldLabelSet:
+			self.pastButton.select()
+		# Select the justButton if applicable.
+		if (self.waveName, self.currIotaNum, self.currPhiNum) in \
+				self.justLabelSet:
+			self.justButton.select()
+
 		iotaStr = utils.ang_to_str(iota)
 		phiStr = utils.ang_to_str(phi)
 		# The the waveform-related data
@@ -420,6 +496,5 @@ if __name__ == "__main__":
 	phiStart, phiEnd = 0, 2*pi
 	iotaNum = 4
 	phiNum = 4
-	labelGui = ProjLabeller(waveform, iotaNum, phiNum, iotaStart,
-							iotaEnd, phiStart, phiEnd)
+	labelGui = ProjLabeller(waveform, iotaNum, phiNum, iotaStart, iotaEnd, phiStart, phiEnd)
 	labelGui.main()

@@ -14,38 +14,17 @@ def submitLabel(labeller, forceSubmit=False):
 	# Making sure that labeller GUI has a substantial
 	# attribute that holds an instance of all the historically
 	# labelled time-frequency maps.
-	if labeller.labelSet is None:
-		# We should not mute any instances of the set since
-		# strictly-speaking we should only use set on immutable
-		# objects.
-		try:
-			labeller.labelSet = set(np.load("all.npy"))
-		except IOError, e:
-			if e.errno == 2:
-				# Handles if all.npy does not exist.
-				labeller.labelSet = set()
-			else:
-				raise e
-		# oldLabelNum is meant to keep a record of
-		# the number of existing labels before the current GUI
-		# session. This will be helpful for debugging by assertion
-		# later on.
-		# Also, note that oldLabelNum is updated only after
-		# loading the existing labels from disk. It will remain
-		# constant afterwards.
-		labeller.oldLabelNum = len(labeller.labelSet)
-		# Checking that we have loaded the labelSet with correct
-		# instance types.
-		if labeller.oldLabelNum > 0:
-			assert isinstance(iter(labeller.labelSet).next(), TfMap)
 	# Now we want to add the new labelled data to the labelSet.
 	currLabel = TfMap(labeller.waveName, labeller.iota, labeller.phi,
 					 labeller.timeArr, labeller.freqArr,
-					 labeller.intensityArr)
+					 labeller.intensityArr, labeller.chirpNum.get(),
+					  labeller.chirpTimes)
 	# Check whether the current label is already in the labelled
 	# set.
 	if currLabel not in labeller.labelSet:
 		labeller.labelSet.add(currLabel)
+		labeller.hasSubmitted = True
+		labeller.addJustLabel()
 		return True
 	else:
 		# If not forced to save label, then return False
@@ -61,4 +40,6 @@ def submitLabel(labeller, forceSubmit=False):
 		else:
 			labeller.labelSet.remove(currLabel)
 			labeller.labelSet.add(currLabel)
+			labeller.hasSubmitted = True
+			labeller.addJustLabel()
 			return True
