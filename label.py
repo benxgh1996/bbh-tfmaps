@@ -35,12 +35,18 @@ class ProjLabeller(object):
 	# It has a signature of submitAction(chirpNum, chirpTimes).
 	# nextAction is a function that will be invoked on skipping
 	# the current plot.
+	# @param waveform (str): An absolute path for the HDF5
+	#	waveform file. This absolute path can contain "..".
 	def __init__(self, waveform, iotaNum, phiNum, iotaStart,
 				 iotaEnd, phiStart, phiEnd):
+		assert path.isfile(waveform)
+		assert isinstance(iotaNum, int)
+		assert isinstance(phiNum, int)
 		self.win = tk.Tk()
 		self.win.title("Project Labeller")
 		# Waveform related attributes
 		self.waveform = waveform
+		# waveName will only look like "GT0577".
 		self.waveName = utils.get_wvname(waveform)
 		# The number of iota angles that we are interested in.
 		self.iotaNum = iotaNum
@@ -58,7 +64,6 @@ class ProjLabeller(object):
 		# When displaying plotNum in a plot, remember to
 		# add 1 to it.
 		self.plotNum = 0
-		# Instantiate all the widgets on the window.
 		# labelSet is a set of labelled TfMaps that are to be
 		# loaded from a npy file.
 		self.labelSet = None
@@ -66,12 +71,15 @@ class ProjLabeller(object):
 		self.timeArr = None
 		self.freqArr = None
 		self.intensityArr = None
+		# Instantiate all the widgets on the window.
 		self.createWidgets()
 
 	def _destroyWindow(self):
 		self.win.quit()
 		self.win.destroy()
 
+	# Called by the initiator to initiate all the widgets in
+	# the labeller GUI.
 	def createWidgets(self):
 		# Handling the window
 		self.win.withdraw()
@@ -85,7 +93,7 @@ class ProjLabeller(object):
 									 text="Previous",
 									 command=self.prevAction)
 		self.prevButton.grid(row=0, column=0)
-		# The next button will proceed to window to the next plot
+		# The next button will proceed the window to the next plot
 		# without saving any labelling for the current plot.
 		self.nextButton = ttk.Button(self.actionFrame,
 									 text="Next",
@@ -93,12 +101,12 @@ class ProjLabeller(object):
 		self.nextButton.grid(row=0, column=1)
 		# Adding a reload button that can reload the current plot.
 		self.reloadButton = ttk.Button(self.actionFrame,
-									   text="Reload",
+									   text="Reload plot",
 									   command=self.reloadCanvas)
 		self.reloadButton.grid(row=0, column=2)
 		# The clear button
 		self.clearButton = ttk.Button(self.actionFrame,
-									  text="Clear",
+									  text="Clear times",
 									  command=self.clearTimeFrame)
 		self.clearButton.grid(row=0, column=3)
 		# The submit button
@@ -116,11 +124,12 @@ class ProjLabeller(object):
 		self.countFrame = ttk.Frame(self.win)
 		self.countFrame.grid(row=1, column=0)
 		# Creating chirp counter
-		# The chirp count indicator
+		# The chirp number indicator
 		self.countLabel = ttk.Label(self.countFrame,
 									text="Number of chirps")
 		self.countLabel.grid(row=0, column=0)
 		# The chirp count entry
+		# Caution that the chirpNum attribute is not an int!
 		self.chirpNum = tk.IntVar()
 		self.countEntry = ttk.Entry(self.countFrame,
 									textvariable=self.chirpNum,
@@ -135,11 +144,13 @@ class ProjLabeller(object):
 		# This button will allow the user to force submit his/her
 		# current label, even if the current tfmap has been
 		# labelled before.
+		# Caution again that the attribute forceSubmit is not int!
 		self.forceSubmit = tk.IntVar()
 		self.forceButton = tk.Checkbutton(self.countFrame,
 										  text="Force submit",
 										  variable=self.forceSubmit,
 										  bg="gray93")
+		# Deselect the force submit button on creation.
 		self.forceButton.deselect()
 		self.forceButton.grid(row=0, column=3)
 
@@ -163,18 +174,19 @@ class ProjLabeller(object):
 		self.canvas = FigureCanvasTkAgg(self.fig, master=self.figFrame)
 		# self.canvas.get_tk_widget().grid(row=0, column=0)
 		self.canvas.get_tk_widget().pack()
+		# Initiate the first plot on creation of the GUI.
 		self.replot()
 
 		# # Scrollbar
 		# self.scrollBar = ttk.Scrollbar(self.win, orient=tk.VERTICAL)
 		# self.scrollBar.grid(row=0, rowspan=4, column=1)
 
-	# Saves all the labels that are created on this labeller
+	# Save all the labels that are created on this labeller
 	# to disk.
 	def saveLabels(self):
 		if self.labelSet is None:
-			msg.showwarning("Warning", "You have not created any"
-									   " labels yet.")
+			msg.showwarning(message="You have not created any "
+									"labels yet.")
 		else:
 			assert len(self.labelSet) >= self.oldLabelNum
 			# Notice that we DO want to keep the attribute
@@ -200,14 +212,15 @@ class ProjLabeller(object):
 		# a different chirp number.
 		if self.chirpNum.get() == len(self.timeWidgets):
 			return
-		else:
-			self.destroyTimeWidgets()
+		# Remove all the existing time widgets.
+		# This operation will still keep the timeFrame, though.
+		self.destroyTimeWidgets()
 		# Reinitialize the time widgets list so that
 		# we will not have more time widgets stored in the list
 		# than there actually are due to appending.
 		self.timeWidgets = []
 		chirpNum = self.chirpNum.get()
-		assert type(chirpNum) == int
+		assert type(chirpNum) is int
 		MAX_ROW_ENTRIES = 4
 		# The current colNum of the to-be-created widget.
 		colNum = 0
@@ -226,6 +239,7 @@ class ProjLabeller(object):
 			widgetDict["chirpLabel"].grid(row=rowNum, column=colNum)
 			colNum += 1
 			# The variable that holds the input time.
+			# Caution that the chirpTime variable is not a float!
 			widgetDict["chirpTime"] = tk.DoubleVar()
 			# The entry where the user inputs the chirp time.
 			widgetDict["timeEntry"] = ttk.Entry(self.timeFrame,
@@ -236,14 +250,14 @@ class ProjLabeller(object):
 			colNum = (colNum + 1) % (MAX_ROW_ENTRIES * 2)
 			self.timeWidgets.append(widgetDict)
 
-	# Final confirmation before submitting user label.
+	# Confirmation message after the user hits the submit button.
 	def trySubmit(self):
 		chirpNum = self.chirpNum.get()
 		assert chirpNum >= 0
 		# Making sure the timeWidgets list stores the right number
 		# of chirps.
 		assert len(self.timeWidgets) == chirpNum
-		# Retrieves the chirp times just labelled.
+		# Retrieves the labelled chirp times.
 		chirpTimes = []
 		for i in range(chirpNum):
 			chirpTimes.append(self.timeWidgets[i]["chirpTime"].get())
@@ -257,30 +271,36 @@ class ProjLabeller(object):
 					"Number of chirps: {}\n".format(chirpNum)
 		for i in range(chirpNum):
 			submitMsg += "Chirp {}: {} sec\n".format(i+1, chirpTimes[i])
-		submitAns = msg.askyesnocancel("Submitting your labelling",
-									   submitMsg)
+		submitAns = msg.askyesnocancel(message=submitMsg)
 		if submitAns:
-			self.submitAction(chirpNum, chirpTimes)
-			# Proceeding to the next plot.
-			self.nextAction()
+			submitSuccess = self.submitAction(chirpNum, chirpTimes)
+			# Proceeding to the next plot only if we have
+			# submitted our current label successfully.
+			if submitSuccess:
+				self.nextAction()
 
 	# Clearing all the entries of the current window.
 	# This will diminish all the time entries.
 	def clearTimeFrame(self):
-		# Clear the chirp count entry
+		# Clear the text of the chirp count entry.
 		self.countEntry.delete(0, tk.END)
+		# Destroying all the children of the timeFrame
+		# while still keeping the timeFrame itself.
 		self.destroyTimeWidgets()
 
 	# This function destroys all the currently present
 	# time-related widgets.
 	def destroyTimeWidgets(self):
 		self.timeFrame.destroy()
+		# Making sure the time frame always exists.
 		self.timeFrame = ttk.Frame(self.win)
 		self.timeFrame.grid(row=2, column=0)
 
 	# After the user confirms submitting the current label
 	# on the message box, do this. Essentially, this function
 	# will add the current label to the existing label set.
+	# @return A boolean, with True indicating the current
+	#	label has been successfully submitted, and False otherwise.
 	def submitAction(self, chirpNum, chirpTimes):
 		# Making sure the intensityArr has values between 0 and 1.
 		assert np.logical_and(self.intensityArr >= 0,
@@ -314,6 +334,7 @@ class ProjLabeller(object):
 			print "{:.2f}, ".format(time),
 		print
 		print
+		return submitSuccess
 
 
 	# Replots the canvas given the updated iota and phi
@@ -324,7 +345,7 @@ class ProjLabeller(object):
 		iota = self.iotaList[self.currIotaNum]
 		phi = self.phiList[self.currPhiNum]
 		# Updating the current iota and phi values whenever
-		# we need to do a replot.
+		# we replot.
 		self.iota = iota
 		self.phi = phi
 		iotaStr = utils.ang_to_str(iota)
@@ -358,8 +379,9 @@ class ProjLabeller(object):
 							 cmap="gray")
 		self.axis.set_xlabel("time (s)")
 		self.axis.set_ylabel("frequency (Hz)")
-		self.axis.set_title("{} {}th, iota: {}, phi: {}".
+		self.axis.set_title("{} {}th/{}*{}, iota: {}, phi: {}".
 							format(self.waveName, self.plotNum+1,
+								   self.iotaNum, self.phiNum,
 								   iotaStr, phiStr))
 		self.canvas.draw()
 
