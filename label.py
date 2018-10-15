@@ -400,7 +400,7 @@ class ProjLabeller(object):
 		print "chirpNum: {}".format(chirpNum)
 		print "chirpTimes: ",
 		for time in chirpTimes:
-			print "{:.2f}, ".format(time),
+			print "{:.3f}, ".format(time),
 		print
 		print
 		return submitSuccess
@@ -494,7 +494,7 @@ class ProjLabeller(object):
 
 
 if __name__ == "__main__":
-	waveform = "GT0577.h5"
+	waveform = "GT0355.h5"
 	waveform = path.join(WAVEFORM_DIR, waveform)
 	# It's fine to use int here because I have explicitly specified
 	# the dtype for linspace in the initiator to be float.
