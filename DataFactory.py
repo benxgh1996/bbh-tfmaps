@@ -1,4 +1,5 @@
 from TfInstance import *
+from TfMaker import *
 import random as rand
 import utils
 import os
@@ -49,135 +50,102 @@ class DataFactory(object):
 
 	# Generate the actual time-frequency images (as jpg files) from
 	# the labelled data. The generated image data are to be used for
-	# training the nerual net.
-	# @param annoData (str): the path to the npy file that holds the
-	# 	annotated data.
-	# @param savePath (str): the path to the directory that will hold
-	#	the generated image files.
+	# training the neural net.
+	# @param tfData (array<TfInstance>): An object array that holds
+	#	the annotated data.
+	# @param imDirPath (str): the path to the directory that will hold
+	#	the generated image files. savePath can be either an
+	#	absolute path or a path relative to the current directory.
+	# @param tfMaker (TfMaker): A TfMaker object that has been
+	# 	preconfigured to generate time-frequency images from a
+	# 	waveform file at certain parameter settings.
 	# @param genMenu (bool): a flag that marks whether we want to generate
 	# 	a menu (txt) file that lists each generated image and its label.
 	#	The label will be 1 for double chirp and 0 for no double chirp.
 	# @param menuName (str): The name (e.g. train.txt) for the menu file.
 	@staticmethod
-	def genIm(annoPath, savePath, tfMaker, genMenu=True,
+	def genIm(tfData, imDirPath, tfMaker, genMenu=True,
 			  menuName=None):
-		tfData = np.load(annoPath)
+		# An array of TfInstance.
+		# menuFile will become a file object when appropriate.
+		menuFile = None
 		if not genMenu:
+			# We don't want to generate a menu.
 			if menuName is not None:
+				# We still have a supplied menu name.
 				raise Exception("An unnecessary menuName is supplied "
 								"with no intent of generating menu file.")
 		else:
+			# We do want to generate a menu.
 			if menuName is None:
 				raise Exception("menuName not supplied.")
 			elif PATH.isfile(menuName):
+				# Note that this assumes that the menu file will always
+				# be generated inside the current directory.
 				raise Exception("menuName already exists as a file.")
 			else:
-				f = open(menuName)
+				# Now we know we do want to create a menu file and
+				# we have a supplied menu file name.
+				# We need to obtain a file object for the menu file for
+				# writing onto.
+				menuFile = open(menuName, "w")
 
-
+		# Obtaining the path to the waveform directory.
 		BBH_DIR = PATH.dirname(PATH.abspath(__file__))
+		# Gonghan Xu: This path seeking procedure is specific only to my
+		# own machine. It needs to be changed if this script is run
+		# on some other machine.
 		waveDirPath = PATH.join(BBH_DIR, "..", "lvcnr-lfs", "GeorgiaTech")
+		print "Starting generating a total of {} images.."\
+			.format(len(tfData))
 
+
+		counter = 0
+		# Create and save an image for each labelled tfInstance.
+		# Write to the menuFile when appropriate.
 		for tfInstance in tfData:
+			counter += 1
+			print "Generating the {}st image..".format(counter)
+			# Convert each labelled tfInstance into an image array.
 			im = tfMaker.tfInstance2Im(tfInstance, waveDirPath)
-			plt.imshow(im)
+			plt.imshow(im, cmap="gray")
 			imName = DataFactory.getImFileName(tfInstance)
-			# TODO: Need to check whether this will save the image to
-			# the correct directory.
-			plt.savefig(PATH.join(savePath, imName))
+
+			# The following way has been checked to be able to
+			# save the image to the desired directory. Note that
+			# imDirPath can be either an absolute path or a relative
+			# path to the current directory.
+			plt.savefig(PATH.join(imDirPath, imName))
+
+			if genMenu:
+				# Write the corresponding entry onto the menu file.
+				hasDoubleChirp = tfInstance.hasDoubleChirp
+				# There is no point of saving a menu file if the
+				# time-frequency maps have not been labelled.
+				assert hasDoubleChirp is not None
+				menuFile.write(imName + " " +
+							   str(int(hasDoubleChirp)) + "\n")
+		menuFile.close()
 
 	# Get the appropriate file name representing a time-frequency image.
 	@staticmethod
 	def getImFileName(tfInstance):
 		x = tfInstance
+		# The values of iota, phi, and motherFreq are all left shifted by
+		# two decimals to make them appear as integers. This is to avoid
+		# multiple dots in a file name.
+		iota = x.iota * 180 / pi
+		phi = x.phi * 180 / pi
 		imName = "{}_{:d}_{:d}_{:d}.jpg".\
-			format(x.waveformName, x.iota*100, x.phi*100, x.motherFreq*10)
+			format(x.waveformName, int(round(iota*100)),
+				   int(round(phi*100)), int(round(x.motherFreq*100)))
 		return imName
 
 
-# A class that is used to generate time-frequency images at given
-# configurations. The main configuration parameters will be related to
-# to how we would like to downsample a time-frequency map.
-class TfMaker(object):
-	# @param midTime (float): The middle point of time with respect
-	#	to the time window. leftTime and rightTime are measured with
-	#	respect to this middle point of time.
-	# @param numTimes (int): The number of time points to be selected
-	# 	along the time-axis.
-	# @param numFreqs (int): The number of frequency points to be selected
-	# 	along the frequency axis.
-	# @param leftTimeWindow (non-positive float): The left time window,
-	# 	measured as between the ideal starting time and the middle time.
-	# @param rightTimeWindow (non-negative float): The right time window,
-	# 	measured as between the ideal ending time and the middle time.
-	# @param freqWindow (int): The total number of interesting frequency
-	#	points.
-	# 	The entire frequency window will be (0, 0 + freq_window - 1).
-	# 	The default frequency window may be carefully selected to be 505
-	# 	because 505=63*8+1. Therefore, 505 is able to give 64 selected
-	# 	points exactly.
-	def __init__(self, midTime, numTimes, numFreqs, leftTimeWindow,
-				 rightTimeWindow, freqWindow):
-		self.midTime = midTime
-		self.numTimes = numTimes
-		self.numFreqs = numFreqs
-		self.leftTimeWindow = leftTimeWindow
-		self.rightTimeWindow = rightTimeWindow
-		self.freqWindow = freqWindow
-
-	# Generate an image from a TfInstance.
-	# @param tfInstance (TfInstance): An TfInstance from which an image
-	#	will be generated.
-	# @param waveformPath (str): The path to the directory where
-	#	the HDF5 waveform files are stored.
-	# @return im (ndarray<*, *>): A 2-D array representing the image
-	#	of a time-frequency map. This array is already flipped along
-	#	the frequency axis so that imshow will be able to show the image
-	#	in normal looking.
-	def tfInstance2Im(self, tfInstance, waveDirPath):
-		waveformName = tfInstance.waveformName
-		waveformPath = PATH.join(waveDirPath, waveformName)
-		im, _, _ = self.getTfIm(waveformPath, tfInstance.iota,
-								tfInstance.phi, tfInstance.motherFreq)
-		# Flipping the frequency axis to make the image look normal
-		# using imshow.
-		im = np.flip(im, axis=0)
-		return im
-
-
-	# Generate a time-frequency image.
-	def getTfIm(self, wavePath, iota, phi, motherFreq):
-		MAX_SCALE = 512
-		wfData = gen_waveform(wavePath, iota, phi)
-		tfData = tf_decompose(wfData['hp'], wfData["sample_times"],
-							  motherFreq, MAX_SCALE)
-		wplane = tfData["wplane"]
-		wfreqs = tfData["wfreqs"]
-		sampleTimes = wfData["sample_times"]
-		sampledWplane, sampledFreqs, sampledTimes = \
-			utils.select_wplane(wplane, wfreqs, sampleTimes,
-								mid_t=self.midTime, xnum=self.numFreqs,
-								ynum=self.numTimes,
-								left_t_window=self.leftTimeWindow,
-								right_t_window=self.rightTimeWindow,
-								freq_window=self.freqWindow)
-
-		assert isinstance(sampledWplane, np.ndarray)
-		assert isinstance(sampledTimes, np.ndarray)
-		assert isinstance(sampledFreqs, np.ndarray)
-		assert sampledWplane.ndim == 2
-		assert sampledWplane.shape[0] == len(sampledFreqs) == self.numFreqs
-		assert sampledWplane.shape[1] == len(sampledTimes) == self.numTimes
-
-		return sampledWplane, sampledTimes, sampledFreqs
-
-
 if __name__ == "__main__":
-	# tfData = np.load("tfInstances.npy")
-	# tfFactory = DataFactory(tfData)
-	# trainArr, testArr = tfFactory.splitData(6, 2)
-	# assert len(trainArr) == 600
-	# assert len(testArr) == 200
-	# np.save("trainSet.npy", trainArr)
-	# np.save("testSet.npy", testArr)
+	trainSet = np.load("trainSet.npy")
+	tfData = trainSet[: 15]
+	imMaker = TfMaker()
+	DataFactory.genIm(tfData, "testDir/", imMaker, genMenu=True,
+					  menuName="testMenu.txt")
 	pass

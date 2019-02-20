@@ -4,6 +4,8 @@ from utils import *
 
 # Represents a labelled time-frequency map.
 class TfInstance(object):
+	# @param iota (float): In radian.
+	# @param phi (float): In radian.
 	def __init__(self, waveformName, iota, phi, motherFreq,
 				 hasDoubleChirp=None,
 				 spin1x=None, spin1y=None, spin1z=None,
