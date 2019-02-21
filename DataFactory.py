@@ -6,6 +6,7 @@ import os
 PATH = os.path
 from utilsWaveform import *
 import matplotlib.pyplot as plt
+from PIL import Image
 
 
 # This class represents an object that holds an array of labelled
@@ -82,7 +83,8 @@ class DataFactory(object):
 			elif PATH.isfile(menuName):
 				# Note that this assumes that the menu file will always
 				# be generated inside the current directory.
-				raise Exception("menuName already exists as a file.")
+				raise Exception("{} already exists as a file."
+								.format(menuName))
 			else:
 				# Now we know we do want to create a menu file and
 				# we have a supplied menu file name.
@@ -108,14 +110,15 @@ class DataFactory(object):
 			print "Generating the {}st image..".format(counter)
 			# Convert each labelled tfInstance into an image array.
 			im = tfMaker.tfInstance2Im(tfInstance, waveDirPath)
-			plt.imshow(im, cmap="gray")
 			imName = DataFactory.getImFileName(tfInstance)
 
 			# The following way has been checked to be able to
 			# save the image to the desired directory. Note that
 			# imDirPath can be either an absolute path or a relative
 			# path to the current directory.
-			plt.savefig(PATH.join(imDirPath, imName))
+			# plt.imsave(PATH.join(imDirPath, imName), im, cmap="gray")
+			im = Image.fromarray(im)
+			im.save(PATH.join(imDirPath, imName))
 
 			if genMenu:
 				# Write the corresponding entry onto the menu file.
@@ -136,7 +139,7 @@ class DataFactory(object):
 		# multiple dots in a file name.
 		iota = x.iota * 180 / pi
 		phi = x.phi * 180 / pi
-		imName = "{}_{:d}_{:d}_{:d}.jpg".\
+		imName = "{}_{:d}_{:d}_{:d}.tiff".\
 			format(x.waveformName, int(round(iota*100)),
 				   int(round(phi*100)), int(round(x.motherFreq*100)))
 		return imName
@@ -144,8 +147,7 @@ class DataFactory(object):
 
 if __name__ == "__main__":
 	trainSet = np.load("trainSet.npy")
-	tfData = trainSet[: 15]
 	imMaker = TfMaker()
-	DataFactory.genIm(tfData, "testDir/", imMaker, genMenu=True,
-					  menuName="testMenu.txt")
+	DataFactory.genIm(trainSet, "trainTiffDir/", imMaker, genMenu=True,
+					  menuName="trainTiffMenu.txt")
 	pass
