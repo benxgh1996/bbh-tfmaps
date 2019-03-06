@@ -7,6 +7,7 @@ PATH = os.path
 from utilsWaveform import *
 import matplotlib.pyplot as plt
 from PIL import Image
+import copy
 
 
 # This class represents an object that holds an array of labelled
@@ -49,7 +50,17 @@ class DataFactory(object):
 		testSet = np.array(list(testSet))
 		return trainSet, testSet
 
-	# Generate the actual time-frequency images (as jpg files) from
+	# Helper function to obtain the absolute path to the directory
+	# 	that contains the HDF5 waveform files.
+	# 	This path seeking procedure is specific only to my (Gonghan Xu)
+	# 	own machine. It needs to be changed if this script is run
+	# 	on some other machine.
+	@staticmethod
+	def getWaveDirPath():
+		BBH_DIR = PATH.dirname(PATH.abspath(__file__))
+		return PATH.join(BBH_DIR, "..", "lvcnr-lfs", "GeorgiaTech")
+
+	# Generate the actual time-frequency images (as image files) from
 	# the labelled data. The generated image data are to be used for
 	# training the neural net.
 	# @param tfData (array<TfInstance>): An object array that holds
@@ -93,15 +104,10 @@ class DataFactory(object):
 				menuFile = open(menuName, "w")
 
 		# Obtaining the path to the waveform directory.
-		BBH_DIR = PATH.dirname(PATH.abspath(__file__))
-		# Gonghan Xu: This path seeking procedure is specific only to my
-		# own machine. It needs to be changed if this script is run
-		# on some other machine.
-		waveDirPath = PATH.join(BBH_DIR, "..", "lvcnr-lfs", "GeorgiaTech")
+		waveDirPath = DataFactory.getWaveDirPath()
+
 		print "Starting generating a total of {} images.."\
 			.format(len(tfData))
-
-
 		counter = 0
 		# Create and save an image for each labelled tfInstance.
 		# Write to the menuFile when appropriate.
@@ -144,10 +150,82 @@ class DataFactory(object):
 				   int(round(phi*100)), int(round(x.motherFreq*100)))
 		return imName
 
+	# This method is used to synthesize an array of amplitude arrays
+	# 	and another array of labels. The array of amplitude arrays
+	# 	represents images as potential input data for machine learning.
+	#	The array of labels are used for supervised learning.
+	#	Note that the image data may need to be preprocessed before
+	#	being supplied as features into a machine learning algorithm.
+	# @param tfData (ndarray<TfInstance>): An array of heavy TfInstance.
+	#	This means each object in this array should encapsulate a
+	#	substantial attribute of ampArr and a substantial attribute of
+	#	hasDoubleChirp.
+	# @return imArr (ndarray<*, *, *>): An array of the images of the
+	#	labelled time-frequency maps.
+	# @return labelList (list<str>): A list of strings, corresponding
+	#	 to the labels for the synthesized image array.
+	@staticmethod
+	def getTrainableArrays(tfData):
+		imArr = []
+		labelList = []
+		for tfInstance in tfData:
+			assert tfInstance.hasDoubleChirp is not None
+			assert tfInstance.ampArr is not None
+			imArr.append(tfInstance.ampArr)
+			if tfInstance.hasDoubleChirp:
+				labelList.append("Double Chirp")
+			else:
+				labelList.append("Not Double Chirp")
+		imArr = np.array(imArr)
+		assert len(imArr) == len(labelList)
+		return imArr, labelList
+
+	# This method is used to create machine-trainable data from an
+	#	existing set of light-weight labelled time-frequency map
+	# 	data. So essentially, this method is converting an light-weight
+	#	array of labelled TfInstance data into a heavy array of
+	# 	labelled TfInstance data, where each TfInstance object will
+	#	encapsulate substantial attributes of freqArr, timeArr, and
+	#	ampArr.
+	# @param tfData array<TfInstance>: An array of TfInstance that
+	#	contains light-weight TfInstance objects.
+	# @return tfData array<TfInstance>: An array of heavy TfInstance.
+	@staticmethod
+	def getTrainableData(tfData, tfMaker):
+		numIns = len(tfData)
+		print "Generating a total of {} trainable TfInstance..."\
+			.format(numIns)
+		# Making a deep (recursive) copy of tfData because we want to
+		# build up an array of heavy TfInstance directly upon an array
+		# of light TfInstance, without messing with the passed-in
+		# tfData. I have tested deepcopy, and it seems to work as
+		# as intended in this use case.
+		assert tfData[0].isLight()
+		tfData = copy.deepcopy(tfData)
+		wavePathDir = DataFactory.getWaveDirPath()
+		for idx, tfIns in enumerate(tfData, start=1):
+			print "Generating the {}st/{} TfInstance..".format(idx, numIns)
+			assert tfIns.isLight()
+			assert tfIns.hasDoubleChirp is not None
+			ampArr, timeArr, freqArr = \
+				tfMaker.tfInstance2Im(tfIns, wavePathDir, includeTf=True)
+			tfIns.ampArr = ampArr
+			tfIns.timeArr = timeArr
+			tfIns.freqArr = freqArr
+		return tfData
+
+	# Convert an light-weight, labelled TfInstance array into
+	# a heavy array, and then save this array for persistence.
+	@staticmethod
+	def saveTrainableData(tfData, tfMaker, savePath):
+		print "Saving trainable data..."
+		dat = DataFactory.getTrainableData(tfData, tfMaker)
+		np.save(savePath, dat)
+
 
 if __name__ == "__main__":
-	trainSet = np.load("trainSet.npy")
+	trainSet = np.load("testSet.npy")
 	imMaker = TfMaker()
-	DataFactory.genIm(trainSet, "trainTiffDir/", imMaker, genMenu=True,
-					  menuName="trainTiffMenu.txt")
+	DataFactory.genIm(trainSet, "testTiffDir/", imMaker, genMenu=True,
+					  menuName="testTiffMenu.txt")
 	pass

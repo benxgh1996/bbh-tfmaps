@@ -43,29 +43,47 @@ class TfMaker(object):
 		self.rightTimeWindow = rightTimeWindow
 		self.freqWindow = freqWindow
 
-	# Generate an image from a TfInstance.
+	# Generate an image from a TfInstance by default. Or alternatively,
+	#	generate the timeArr, freqArr, and ampArr for this TfInstance.
+	#	Note that in the default mode, the returned image will be
+	#	flipped so that imshow can display the returned image in a
+	#	normal looking.
 	# @param tfInstance (TfInstance): A TfInstance from which an image
 	#	will be generated.
 	# @param waveformPath (str): The path to the directory where
 	#	the HDF5 waveform files are stored.
-	# @return im (ndarray<*, *>): A 2-D array representing the image
-	#	of a time-frequency map. This array is already flipped along
-	#	the frequency axis so that imshow will be able to show the image
-	#	in normal looking.
-	def tfInstance2Im(self, tfInstance, waveDirPath):
+	# @param includeTf (bool): If True, then this method will return
+	#	the timeArr, freqArr, along with the ampArr for this TfInstance.
+	# @return (default)
+	# 	im (ndarray<floating, floating>): A 2-D array
+	# 		representing the image of a time-frequency map.
+	# 		This array is already flipped along the frequency axis
+	# 		so that imshow will be able to show the image in normal
+	# 		looking.
+	# @return (includeTf=True)
+	# 	ampArr (array<floating, floating>)
+	# 	timeArr (array<floating, floating>)
+	# 	freqArr (array<floating, floating>)
+	def tfInstance2Im(self, tfInstance, waveDirPath, includeTf=False):
 		waveformName = tfInstance.waveformName + ".h5"
 		waveformPath = PATH.join(waveDirPath, waveformName)
-		im, _, _ = self.getTfIm(waveformPath, tfInstance.iota,
-								tfInstance.phi, tfInstance.motherFreq)
-		# Flipping the frequency axis to make the image look normal
-		# using imshow.
-		im = np.flip(im, axis=0)
-		return im
+		ampArr, timeArr, freqArr = \
+			self.getTfIm(waveformPath, tfInstance.iota,
+						 tfInstance.phi, tfInstance.motherFreq)
+		if includeTf:
+			return ampArr, timeArr, freqArr
+		else:
+			# Flipping the frequency axis to make the image look normal
+			# using imshow.
+			return np.flip(ampArr, axis=0)
 
 	# Generate a time-frequency image.
 	# @param wavePath (str): Path to the waveform file.
 	# @param iota (float): In radians.
 	# @param phi (float): In radians.
+	# @return sampledWplane (array<floating, floating>)
+	# @return sampledTimes (array<floating>)
+	# @return sampledFreqs (array<floating>)
 	def getTfIm(self, wavePath, iota, phi, motherFreq):
 		assert isinstance(iota, float)
 		assert isinstance(phi, float)

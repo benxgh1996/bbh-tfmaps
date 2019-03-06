@@ -34,3 +34,24 @@ __pycache__/
 *.rar
 *.tar
 *.zip
+
+# Non-relevant
+*.pdf
+*.tex
+trash.txt
+test.py
+test.ipynb
+play.py
+play.ipynb
+Dockerfile*
+exec*
+*.h5
+*.sh
+*.html
+*.npy
+
+# Temporary files
+~*
+
+# tests
+testplots

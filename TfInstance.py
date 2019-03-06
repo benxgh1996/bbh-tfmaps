@@ -10,11 +10,14 @@ class TfInstance(object):
 				 hasDoubleChirp=None,
 				 spin1x=None, spin1y=None, spin1z=None,
 				 spin2x=None, spin2y=None, spin2z=None,
-				 finalSpin=None, finalMass=None):
-		assert waveformName.find(".") == waveformName.find("/") == -1
-		assert waveformName[:2] == "GT"
-		assert type(iota) == float
-		assert type(phi) == float
+				 finalSpin=None, finalMass=None,
+				 timeArr=None, freqArr=None, ampArr=None,
+				 strongCheck=True):
+		if strongCheck:
+			assert waveformName.find(".") == waveformName.find("/") == -1
+			assert waveformName[:2] == "GT"
+			assert type(iota) == float
+			assert type(phi) == float
 		self.waveformName = waveformName
 		self.iota = iota
 		self.phi = phi
@@ -28,6 +31,42 @@ class TfInstance(object):
 		self.spin2z = spin2z
 		self.finalSpin = finalSpin
 		self.finalMass = finalMass
+		self.timeArr = timeArr
+		self.freqArr = freqArr
+		# ampArr is a 2-D array of floating point values.
+		# When filled with actual data, it will have increasing
+		# row indices corresponding to increasing frequency values.
+		# It will also have increasing column indices corresponding to
+		# increasing time values.
+		self.ampArr = ampArr
+
+	# Factory for re-wrapping a legacy TfInstance object. The use
+	# case for this is primarily for converting a TfInstance object
+	# from a numpy-pickled (as .npy) object array. The pickled TfInstance
+	# object may lack some attributes of the more recently updated
+	# TfInstance class. This factory method does not do deep copy.
+	# @param tfIns (TfInstance)
+	# @return newIns (TfInstance)
+	@staticmethod
+	def factory(tfIns):
+		newIns = TfInstance(None, None, None, None, strongCheck=False)
+		newIns.waveformName = tfIns.waveformName
+		newIns.iota = tfIns.iota
+		newIns.phi = tfIns.phi
+		newIns.motherFreq = tfIns.motherFreq
+		newIns.hasDoubleChirp = tfIns.hasDoubleChirp
+		newIns.spin1x = tfIns.spin1x
+		newIns.spin1y = tfIns.spin1y
+		newIns.spin1z = tfIns.spin1z
+		newIns.spin2x = tfIns.spin2x
+		newIns.spin2y = tfIns.spin2y
+		newIns.spin2z = tfIns.spin2z
+		newIns.finalSpin = tfIns.finalSpin
+		newIns.finalMass = tfIns.finalMass
+		newIns.timeArr = tfIns.timeArr if hasattr(tfIns, "timeArr") else None
+		newIns.freqArr = tfIns.freqArr if hasattr(tfIns, "freqArr") else None
+		newIns.ampArr = tfIns.ampArr if hasattr(tfIns, "ampArr") else None
+		return newIns
 
 	# This method is designed for comparing the iota angles.
 	# This is because comparing floats can be tricky due to
@@ -40,6 +79,12 @@ class TfInstance(object):
 
 	def motherFreqRound(self, ndigits=6):
 		return round(self.motherFreq, ndigits=ndigits)
+
+	# Returns whether or not this object is light-weight, i.e. whether
+	# or not this object contains array-like, non-parameter data.
+	def isLight(self):
+		return (self.timeArr is None) and (self.freqArr is None) \
+				and (self.ampArr is None)
 
 	# The __eq__, __ne__, and __hash__ methods are rewritten
 	# to make TfInstance objects capable of working with sets.
