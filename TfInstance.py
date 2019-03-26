@@ -1,5 +1,6 @@
 import numpy as np
 from utils import *
+import matplotlib.pyplot as plt
 
 
 # Represents a labelled time-frequency map.
@@ -12,7 +13,7 @@ class TfInstance(object):
 				 spin2x=None, spin2y=None, spin2z=None,
 				 finalSpin=None, finalMass=None,
 				 timeArr=None, freqArr=None, ampArr=None,
-				 strongCheck=True):
+				 hp=None, strongCheck=True):
 		if strongCheck:
 			assert waveformName.find(".") == waveformName.find("/") == -1
 			assert waveformName[:2] == "GT"
@@ -39,6 +40,7 @@ class TfInstance(object):
 		# It will also have increasing column indices corresponding to
 		# increasing time values.
 		self.ampArr = ampArr
+		self.hp = hp
 
 	# Factory for re-wrapping a legacy TfInstance object. The use
 	# case for this is primarily for converting a TfInstance object
@@ -66,6 +68,7 @@ class TfInstance(object):
 		newIns.timeArr = tfIns.timeArr if hasattr(tfIns, "timeArr") else None
 		newIns.freqArr = tfIns.freqArr if hasattr(tfIns, "freqArr") else None
 		newIns.ampArr = tfIns.ampArr if hasattr(tfIns, "ampArr") else None
+		newIns.hp = tfIns.hp if hasattr(tfIns, "hp") else None
 		return newIns
 
 	# This method is designed for comparing the iota angles.
@@ -85,6 +88,20 @@ class TfInstance(object):
 	def isLight(self):
 		return (self.timeArr is None) and (self.freqArr is None) \
 				and (self.ampArr is None)
+
+	# Plot and show the time-frequency map.
+	def getPlot(self):
+		fig, ax = plt.subplots()
+		ax.pcolormesh(self.timeArr, self.freqArr,
+					   self.ampArr, cmap="gray")
+		ax.set_xlabel("time (s)")
+		ax.set_ylabel("frequency (Hz)")
+		ax.set_title("{}, iota: {}, phi: {}".format(self.waveformName,
+												 ang_to_str(self.iota),
+												 ang_to_str(self.phi)))
+		return fig, ax
+
+
 
 	# The __eq__, __ne__, and __hash__ methods are rewritten
 	# to make TfInstance objects capable of working with sets.

@@ -35,13 +35,15 @@ class TfMaker(object):
 	# 	because 505=63*8+1. Therefore, 505 is able to give 64 selected
 	# 	points exactly.
 	def __init__(self, numTimes=64, numFreqs=64, freqWindow=505,
-				 midTime=0.0, leftTimeWindow=-0.05, rightTimeWindow=0.03):
+				 midTime=0.0, leftTimeWindow=-0.05, rightTimeWindow=0.03,
+				 downSample=True):
 		self.midTime = midTime
 		self.numTimes = numTimes
 		self.numFreqs = numFreqs
 		self.leftTimeWindow = leftTimeWindow
 		self.rightTimeWindow = rightTimeWindow
 		self.freqWindow = freqWindow
+		self.downSample = downSample
 
 	# Generate an image from a TfInstance by default. Or alternatively,
 	#	generate the timeArr, freqArr, and ampArr for this TfInstance.
@@ -77,6 +79,34 @@ class TfMaker(object):
 			# using imshow.
 			return np.flip(ampArr, axis=0)
 
+	# Obtain the time-frequency map without down-sampling while still
+	# requiring an interesting window.
+	def selectWplaneNoDS(self, plane, times, freqs):
+		plane = np.array(plane)
+		freqs = np.array(freqs)
+		times = np.array(times)
+
+		# Locating the left and right interesting indices for times.
+		leftTimeIdx = np.searchsorted(times,
+									  self.midTime + self.leftTimeWindow)
+		rightTimeIdx = np.searchsorted(times,
+									   self.midTime + self.rightTimeWindow)
+
+		# Error checking
+		timeInterval = times[1] - times[0]
+		idealLeftTime = self.midTime + self.leftTimeWindow
+		idealRightTime = self.midTime + self.rightTimeWindow
+		assert idealLeftTime <= times[leftTimeIdx] \
+			   < idealLeftTime + timeInterval
+		assert idealRightTime <= times[rightTimeIdx] \
+			   < idealRightTime + timeInterval
+
+		times = times[leftTimeIdx: rightTimeIdx + 1]
+		plane = plane[:, leftTimeIdx: rightTimeIdx + 1]
+
+		assert plane.shape == (len(freqs), len(times))
+		return plane, times, freqs
+
 	# Generate a time-frequency image.
 	# @param wavePath (str): Path to the waveform file.
 	# @param iota (float): In radians.
@@ -97,6 +127,10 @@ class TfMaker(object):
 		wplane = tfData["wplane"]
 		wfreqs = tfData["wfreqs"]
 		sampleTimes = wfData["sample_times"]
+
+		if not self.downSample:
+			return self.selectWplaneNoDS(wplane, sampleTimes, wfreqs)
+
 		sampledWplane, sampledFreqs, sampledTimes = \
 			utils.select_wplane(wplane, wfreqs, sampleTimes,
 								mid_t=self.midTime, xnum=self.numFreqs,
@@ -113,3 +147,22 @@ class TfMaker(object):
 		assert sampledWplane.shape[1] == len(sampledTimes) == self.numTimes
 
 		return sampledWplane, sampledTimes, sampledFreqs
+
+	# Get the plus polarization of a waveform.
+	# @return (array<*>)
+	def getHp(self, wavePath, iota, phi):
+		assert isinstance(iota, float)
+		assert isinstance(phi, float)
+		assert iota <= 2 * pi
+		assert phi <= 2 * pi
+		wfData = gen_waveform(wavePath, iota, phi)
+		hp = np.array(wfData["hp"])
+		times = np.array(wfData["sample_times"])
+
+		leftTimeIdx = np.searchsorted(times,
+									  self.midTime + self.leftTimeWindow)
+		rightTimeIdx = np.searchsorted(times,
+									   self.midTime + self.rightTimeWindow)
+
+		return hp[leftTimeIdx: rightTimeIdx + 1]
+

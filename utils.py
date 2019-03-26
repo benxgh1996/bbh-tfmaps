@@ -72,8 +72,9 @@ def select_wplane(wplane, wfreqs, sample_times, mid_t=0,
     right_t_idx = np.searchsorted(sample_times, mid_t+right_t_window)
 
     # Obtaining an interesting region within wplane.
-    # To emphasize, xl, xr, yl, yr are all indices, rather than physical values.
-    # I am naming these variables to mimic the stlye in function
+    # To emphasize, xl, xr, yl, yr are all indices, rather than physical
+    # values.
+    # I am naming these variables to mimic the style in function
     # select_points(arr, region, xnum, ynum).
     xl, xr = 0, 0 + freq_window - 1
     yl, yr = left_t_idx, right_t_idx
@@ -166,9 +167,11 @@ def ang_to_str(ang, to_deg=True, dec=2, show_pi=True):
 
 
 # Assuming the elements of arr are in increasing order.
-# Want to find the lower limit (inclusive) and the upper limit (exclusive) of the indices of the
+# Want to find the lower limit (inclusive) and the upper limit
+# (exclusive) of the indices of the
 # argument array whose corresponding values arr[i] having low < arr[i] < upp.
-# Return a tuple (low_idx, upp_idx), where range(low_idx, upp_idx) will give desried range of indices.
+# Return a tuple (low_idx, upp_idx), where range(low_idx, upp_idx) will
+# give desried range of indices.
 def get_idx_limits(arr, low, upp):
     if low >= upp:
         raise RuntimeError("Lower value not less than upper value.")
@@ -202,7 +205,8 @@ def print_sorted_dict(dict):
     for key in sorted(dict):
         print key, ": ", dict[key]
 
-# Obtain the multi-dimensional array elements that lie between the lower and upper bounds.
+# Obtain the multi-dimensional array elements that lie between the
+# lower and upper bounds.
 # Returned data is a dictionary of {idx: value}
 def test_array_value(arr, lower, upper):
     dimen = len(arr.shape)
@@ -210,9 +214,11 @@ def test_array_value(arr, lower, upper):
     res = _get_values(arr, idx_list)
     return res
 
-# Returns a list of indices of array elements that lie between the lower and upper bounds.
+# Returns a list of indices of array elements that lie between the
+# lower and upper bounds.
 def _search_values(sub_array, curr_depth, lower, upper):
-    # curr_depth = 0 means reaching the last index of an array. So, curr_depth = dimen-1 means the first
+    # curr_depth = 0 means reaching the last index of an array.
+    # So, curr_depth = dimen-1 means the first
     # index layer of an array.
     idx_list = []
 
@@ -255,7 +261,8 @@ def get_t_sum_spectrum(low_time, upp_time, t_range, f_range, tfmap):
     return f_spec
 
 
-# Obtain the waveform name, say GT0577, from the waveform PATH, say "/waves/GT0577.h5".
+# Obtain the waveform name, say GT0577, from the waveform PATH,
+# say "/waves/GT0577.h5".
 # Note that this only works for UNIX file systems where "/" is used as
 # separators in file PATH.
 def get_waveform_name(numrel_data):
