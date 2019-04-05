@@ -9,9 +9,9 @@ from sklearn.decomposition import PCA
 
 
 class Classifier:
-    def __init__(self, classifier=svm.SVC(kernel="linear", gamma="auto"),
+    def __init__(self, model=svm.SVC(kernel="linear", gamma="auto"),
                  featSet=None, labelSet=None, imSet=None):
-        self.classifier = classifier
+        self.model = model
         self.featSet = featSet
         self.labelSet = labelSet
         self.imSet = imSet
@@ -20,12 +20,13 @@ class Classifier:
     # @param fileName (str)
     def loadData(self, fileName):
         data = np.load(fileName)
-        self.imSet, self.labelSet = DataFactory.getTrainableArrays(data)
+        self.imSet, self.labelSet = \
+            DataFactory.getTrainableArrays(data)
         self.labelSet = np.array(self.labelSet)
         assert isinstance(self.imSet[0, 0, 0], np.floating)
         assert (self.imSet >= 0).all() and (self.imSet <= 1).all()
 
-    # Load the classifier with features and labels directly.
+    # Load the model with features and labels directly.
     # @param feats (array<*>)
     # @param labels (array<*>)
     def loadInput(self, feats, labels):
@@ -48,11 +49,30 @@ class Classifier:
                 labels.append("Not Double Chirp")
         self.loadInput(np.array(feats), np.array(labels))
 
+    def smoothImages(self, sigma=0.6):
+        smoothSet = []
+        for im in self.imSet:
+            smoothIm = filters.gaussian(im, sigma=sigma)
+            smoothSet.append(smoothIm)
+        # Rewrites self.imSet.
+        self.imSet = np.array(smoothSet)
+        assert self.imSet.ndim == 3
+        assert isinstance(self.imSet[0, 0, 0], np.floating)
+
+    # Extract features from image using PCA.
+    # @return (floating): Total percentage of variances covered.
+    def extractFeatsPCA(self, numComps):
+        pca = PCA(n_components=numComps)
+        tmp = self.imSet.reshape(len(self.imSet), -1)
+        self.featSet = pca.fit_transform(tmp)
+        assert self.featSet.shape == (len(self.imSet), numComps)
+        return sum(pca.explained_variance_ratio_[0: numComps])
+
     # This function extracts the features from the image set. By default
     #   we will not apply the Gaussian filter.
     # @param sigma (float): If None, do not apply the Gaussian filter
     #   to smooth the images. May want to try sigma = 0.6.
-    def extractFeats(self, flatten=False, sigma=None):
+    def extractHOGFeats(self, flatten=False, sigma=None):
         # print "Number of instances:", len(self.imSet)
         numImages = len(self.imSet)
         if sigma is not None:
@@ -65,7 +85,7 @@ class Classifier:
             self.imSet = np.array(smoothSet)
             assert self.imSet.ndim == 3
             assert isinstance(self.imSet[0, 0, 0], np.floating)
-            assert (self.imSet >= 0).all() and (self.imSet <= 1).all()
+            # assert (self.imSet >= 0).all() and (self.imSet <= 1).all()
 
         # print "Extracting features.."
         if flatten:
@@ -76,38 +96,34 @@ class Classifier:
             # A collection that holds the feature vectors.
             self.featSet = []
             # orient, cells_p, pixels_p, vec_len
+            # With Downsampling (64 * 64)
             # 8, (4, 4), (4, 4), 21632
             # 8, (4, 4), (8, 8), 3200
             # 8, (2, 2), (8, 8), 1568
             # 8, (2, 2), (4, 4), 7200
+            # No Downsampling (508 * 328)
+            # 8, (2, 2), (64, 40), 1344
             for idx, im in enumerate(self.imSet):
                 if (idx + 1) % 50 == 0:
                     print "Extracting feature from {}st/{} image"\
                         .format(idx+1, numImages)
-                feat = feature.hog(im, orientations=8, pixels_per_cell=(64, 40),
-                                   cells_per_block=(2, 2), block_norm="L2-Hys")
+                feat = feature.hog(im, orientations=8,
+                                   cells_per_block=(2, 2),
+                                   pixels_per_cell=(64, 40),
+                                   block_norm="L2-Hys")
                 self.featSet.append(feat)
             print
             self.featSet = np.array(self.featSet)
         assert self.featSet.ndim == 2
 
-    # Extract features from image using PCA.
-    # @return (floating): Total percentage of variances covered.
-    def extractFeatsPCA(self, numComps):
-        pca = PCA(n_components=numComps)
-        tmp = self.imSet.reshape(len(self.imSet), -1)
-        self.featSet = pca.fit_transform(tmp)
-        assert self.featSet.shape == (len(self.imSet), numComps)
-        return sum(pca.explained_variance_ratio_[0: numComps])
-
-
     # Checks the properties of the extracted image feature.
-    def checkFeat(self):
+    def checkHOGFeat(self):
         im = self.imSet[0]
         print "Shape of image:", im.shape
-        feat = feature.hog(im, orientations=8, pixels_per_cell=(64, 40),
-                           cells_per_block=(2, 2), block_norm="L2-Hys")
-
+        feat = feature.hog(im, orientations=8,
+                           cells_per_block=(2, 2),
+                           pixels_per_cell=(64, 40),
+                           block_norm="L2-Hys")
         print("Feature shape:", feat.shape)
         print("Feature type:", feat.dtype)
         print("Max feat value:", feat.max())
@@ -117,25 +133,25 @@ class Classifier:
         # plt.imshow(hogIm, cmap="gray")
         # plt.show()
 
-    # Resets the classifier.
+    # Resets the model.
     def setClassifier(self, classifier):
-        self.classifier = classifier
+        self.model = classifier
 
-    # Trains the classifier.
+    # Trains the model.
     def train(self):
         assert self.featSet.ndim == 2
         assert self.labelSet.ndim == 1
         assert len(self.featSet) == len(self.labelSet)
-        print("Training classifier..")
+        print("Training model..")
         print("Length of feature set:", len(self.featSet))
-        self.classifier.fit(self.featSet, self.labelSet)
+        self.model.fit(self.featSet, self.labelSet)
 
     # Predicts the labels of a collection of images.
     # @param data (array<*, *>): A list of features representing images
     #   to be classified.
     # @return array: An array of predicted labels.
     def predictLabels(self, data):
-        return self.classifier.predict(data)
+        return self.model.predict(data)
 
     # This functions performs k-fold cross-validation on the training data.
     # @param trainArr (array<array>): The training features.
@@ -146,7 +162,7 @@ class Classifier:
         assert self.labelSet.ndim == 1
         assert len(self.featSet) == len(self.labelSet)
         assert isinstance(self.labelSet[0], str)
-        scores = cross_validate(self.classifier, self.featSet,
+        scores = cross_validate(self.model, self.featSet,
                                 self.labelSet, cv=k, return_train_score=True)
         trainAccus = scores["train_score"]
         testAccus = scores["test_score"]
@@ -180,29 +196,41 @@ class Classifier:
         plt.title("New Image, sigma = {}".format(sigma))
         plt.show()
 
+    # Obtain the rest (i.e. remaining) data set excluding the
+    # validation set
+    # @param arr (array): The original training set from which
+    #   a validation set is to be extracted.
+    # @param start (int): the starting idx of the validation set.
+    # @param end (int): the ending idx + 1 of the validation set, which
+    #   can be the length of arr.
+    @staticmethod
+    def restSet(arr, start, end):
+        assert 0 <= start < end <= len(arr)
+        return np.concatenate((arr[0: start], arr[end:]))
+
 
 # def main():
-#     clf = Classifier()
+#     model = Classifier()
 #
 #     # load images
-#     clf.loadData("newTrainSet.npy")
-#     (test_raw, test_labels) = clf.loadData('./test/')
+#     model.loadData("newTrainSet.npy")
+#     (test_raw, test_labels) = model.loadData('./test/')
 #
 #     # convert images into features
 #     # Notice that an entire array of images are passed into the feature
 #     # extraction function.
 #     # train_data, test_data are both arrays of features that represent
 #     # the collection of images.
-#     train_data = clf.extractFeats(train_raw)
-#     test_data = clf.extractFeats(test_raw)
+#     train_data = model.extractHOGFeats(train_raw)
+#     test_data = model.extractHOGFeats(test_raw)
 #
 #     # train model and test on training data
-#     clf.train(train_data, train_labels)
+#     model.train(train_data, train_labels)
 #
-#     # Now that we have trained the classifier.
+#     # Now that we have trained the model.
 #     # We want to predict the labels of the training data to obtain
 #     # the training accuracy.
-#     predicted_labels = clf.predictLabels(train_data)
+#     predicted_labels = model.predictLabels(train_data)
 #     print("\nTraining results")
 #     print("=============================")
 #     print("Confusion Matrix:\n",
@@ -213,7 +241,7 @@ class Classifier:
 #         train_labels, predicted_labels, average='micro'))
 #
 #     # test model
-#     predicted_labels = clf.predictLabels(test_data)
+#     predicted_labels = model.predictLabels(test_data)
 #     print("\nTest results")
 #     print("=============================")
 #     print("Confusion Matrix:\n",
@@ -225,12 +253,17 @@ class Classifier:
 
 
 # This function is used for personal testing.
-def crossVal(k=5, nComps=None):
+# @param dat (array<TfInstance>)
+def crossVal(k=5, nComps=None, dat=None):
     clf = Classifier()
     # Loading training data
     print "Loading training data.."
     startLoadTime = time.time()
-    clf.loadData("heavyTrainSet_noDS.npy")
+    if dat is not None:
+        clf.imSet, clf.labelSet = \
+            DataFactory.getTrainableArrays(dat)
+    else:
+        clf.loadData("heavyTrainSet.npy")
     # clf.loadData("heavyTrainSet_noDS.npy")
     # clf.loadHpDat("hpTrainSet.npy")
     endLoadTime = time.time()
@@ -240,14 +273,14 @@ def crossVal(k=5, nComps=None):
 
     # # Checking feature vector.
     # print "Checking HOG features.."
-    # clf.checkFeat()
+    # model.checkHOGFeat()
     # print
 	#
     # Extracting features.
     print "Extracting features from training data.."
     startExtractTime = time.time()
-    # clf.extractFeats()
-    # clf.extractFeats(flatten=True)
+    # clf.extractHOGFeats()
+    # clf.extractHOGFeats(flatten=True)
     percentVarCovered = clf.extractFeatsPCA(nComps)
     print "Original Image Size:", clf.imSet[0].shape
     print "Number of selected principal components:", nComps
@@ -277,10 +310,10 @@ def checkFilter(sigma=1):
 def checkFeat():
     clf = Classifier()
     clf.loadData("heavyTrainSet_noDS.npy")
-    clf.checkFeat()
+    clf.checkHOGFeat()
 
 
 if __name__ == "__main__":
     # main()
     crossVal(k=5, nComps=50)
-    # checkFeat()
+    # checkHOGFeat()

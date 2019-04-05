@@ -6,6 +6,9 @@ import otter.bootstrap as bt
 import os
 import TfInstance
 import time
+from Classifier import *
+from tfRun import *
+import sys
 
 PATH = os.path
 BBH_DIR = PATH.dirname(PATH.abspath(__file__))
@@ -148,7 +151,7 @@ def plotLabelledSet():
 	# Creating a web report
 	report = otter.Otter("otterHtmls/training_set_noDS.html",
 						 author="Gonghan Xu",
-						 title="Training Set (64 * 64)")
+						 title="Training Set")
 	dat = np.load("heavyTrainSet_noDS.npy")
 	dat = sorted(dat)
 	# dat = dat[: 10]
@@ -181,9 +184,73 @@ def plotLabelledSet():
 	print "Web page generation time:", loadTime, "sec"
 
 
+def plotProbs():
+	# Creating a web report
+	report = otter.Otter("otterHtmls/probs.html",
+						 author="Gonghan Xu",
+						 title="All Cases (Linear Kernel; "
+							   "Using Original Image Size: 508 * 328)")
+
+	dat = np.load("heavyTrainSet_noDS.npy")
+	# dat = sorted(dat)
+	# dat = dat[: 248]
+	startLoadTime = time.time()
+	numIns = len(dat)
+	shuffIndices, probs, accus, fails, confMat \
+		= getCrossValProbs(dat, nfolds=5)
+
+	# sys.exit()
+	print "Start generating plots.."
+	numAccurates = 0
+	counter = 0
+	with report:
+		# Putting the plots onto the web page.
+		for c, i in enumerate(range(numIns), start=1):
+			if c % 50 == 0:
+				print "At {}st/{} image".format(c, numIns)
+			# if not fails[i]:
+			# 	continue
+			counter += 1
+			ins = dat[shuffIndices[i]]
+			fig, ax = ins.getPlot()
+
+			# Writing the downsampled time_freq image
+			# Creating a row with three columns.
+			row = bt.Row(4)
+			row[0] + counter
+			# Putting the figure to the middle cell.
+			row[1].width = 6
+			row[1] + fig
+			if ins.hasDoubleChirp:
+				row[2] + "Hand Label: Double Chirp"
+			else:
+				row[2] + "Hand Label: Not Double Chirp"
+			row[3] + "Predicted Prob (Double Chirp): {:.3f}"\
+				.format(probs[i])
+			report + row
+			plt.close(fig)
+
+			# if ins.hasDoubleChirp:
+			# 	numAccurates += 1 if probs[i] > 0.5 else 0
+			# else:
+			# 	numAccurates += 1 if probs[i] <= 0.5 else 0
+
+			# if dat[shuffIndices[i]].hasDoubleChirp:
+			# 	numAccurates += 1 if probs[shuffIndices[i]] > 0.5 else 0
+			# else:
+			# 	numAccurates += 1 if probs[shuffIndices[i]] <= 0.5 else 0
+
+	endLoadTime = time.time()
+	loadTime = endLoadTime - startLoadTime
+	print "Web page generation time:", loadTime, "sec"
+	print "Verifying classification accuracy: {:.5f}"\
+		.format(1 - 1.0 * sum(fails) / numIns)
+
+
 if __name__ == "__main__":
 	# plotInstances("tfInstances.npy")
 	# plotArbiAngles()
-	plotLabelledSet()
+	# plotLabelledSet()
+	plotProbs()
 
 	pass

@@ -160,25 +160,34 @@ class DataFactory(object):
 	#	This means each object in this array should encapsulate a
 	#	substantial attribute of ampArr and a substantial attribute of
 	#	hasDoubleChirp.
+	# @param prob (bool): If True, assign floating point numbers as
+	#	labels. If False, assign string values as labels.
 	# @return imArr (ndarray<*, *, *>): An array of the images of the
 	#	labelled time-frequency maps.
-	# @return labelList (list<str>): A list of strings, corresponding
-	#	 to the labels for the synthesized image array.
+	# @return labelList (array<str-like>): An array of str-likes,
+	# 	corresponding to the labels for the synthesized image array.
 	@staticmethod
-	def getTrainableArrays(tfData):
+	def getTrainableArrays(tfData, prob=False):
 		imArr = []
-		labelList = []
+		labelArr = []
 		for tfInstance in tfData:
 			assert tfInstance.hasDoubleChirp is not None
 			assert tfInstance.ampArr is not None
 			imArr.append(tfInstance.ampArr)
-			if tfInstance.hasDoubleChirp:
-				labelList.append("Double Chirp")
+			if prob:
+				if tfInstance.hasDoubleChirp:
+					labelArr.append(1.)
+				else:
+					labelArr.append(0.)
 			else:
-				labelList.append("Not Double Chirp")
+				if tfInstance.hasDoubleChirp:
+					labelArr.append("Double Chirp")
+				else:
+					labelArr.append("Not Double Chirp")
 		imArr = np.array(imArr)
-		assert len(imArr) == len(labelList)
-		return imArr, labelList
+		labelArr = np.array(labelArr)
+		assert len(imArr) == len(labelArr)
+		return imArr, labelArr
 
 	# This method is used to create machine-trainable data from an
 	#	existing set of light-weight labelled time-frequency map

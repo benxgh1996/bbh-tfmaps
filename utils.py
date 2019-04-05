@@ -2,6 +2,33 @@ import numpy as np
 import pycbc
 
 
+# @param confMat (array): The rows represent the actual classes,
+#   while the columns represent the predicted classes.
+# @param attNames (array_like<str_like>): A collection of class names.
+def printConfMat(mat, attNames):
+    print "Rows (Actual), Columns (Predicted)"
+    print "=" * 50
+    maxLen = 0
+    minWidth = 5
+    for s in attNames:
+        if len(s) > maxLen:
+            maxLen = len(s)
+    if maxLen < minWidth:
+        maxLen = minWidth
+    w = maxLen + 4
+    print "{:{width}}".format("", width=w),
+    for att in attNames:
+        print "{:>{width}}".format(att, width=w),
+    print
+
+    for i, att in enumerate(attNames):
+        print "{:>{width}}".format(att, width=w),
+        for j in range(len(attNames)):
+            print "{:{width}}".format(mat[i][j], width=w),
+        print
+    print "=" * 50
+
+
 # Extract the waveform name from its file PATH
 # wvpath is a string of form xx/xx/xxxx.h5
 # An example wavePath is "GT0577". Notice that the ".h5"

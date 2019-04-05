@@ -39,7 +39,6 @@ __pycache__/
 *.pdf
 *.tex
 trash.txt
-test.py
 test.ipynb
 play.py
 play.ipynb
