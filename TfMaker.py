@@ -96,10 +96,13 @@ class TfMaker(object):
 		timeInterval = times[1] - times[0]
 		idealLeftTime = self.midTime + self.leftTimeWindow
 		idealRightTime = self.midTime + self.rightTimeWindow
-		assert idealLeftTime <= times[leftTimeIdx] \
-			   < idealLeftTime + timeInterval
-		assert idealRightTime <= times[rightTimeIdx] \
-			   < idealRightTime + timeInterval
+
+		if times[0] < idealLeftTime + timeInterval:
+			assert idealLeftTime <= times[leftTimeIdx] \
+				   < idealLeftTime + timeInterval
+		if times[-1] >= idealRightTime:
+			assert idealRightTime <= times[rightTimeIdx] \
+				   < idealRightTime + timeInterval
 
 		times = times[leftTimeIdx: rightTimeIdx + 1]
 		plane = plane[:, leftTimeIdx: rightTimeIdx + 1]
@@ -127,6 +130,9 @@ class TfMaker(object):
 		wplane = tfData["wplane"]
 		wfreqs = tfData["wfreqs"]
 		sampleTimes = wfData["sample_times"]
+
+		if self.leftTimeWindow is None and self.rightTimeWindow is None:
+			return wplane, sampleTimes, wfreqs
 
 		if not self.downSample:
 			return self.selectWplaneNoDS(wplane, sampleTimes, wfreqs)
@@ -166,3 +172,6 @@ class TfMaker(object):
 
 		return hp[leftTimeIdx: rightTimeIdx + 1]
 
+
+if __name__ == "__main__":
+	tfmaker = TfMaker(downSample=False)

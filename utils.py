@@ -29,6 +29,37 @@ def printConfMat(mat, attNames):
     print "=" * 50
 
 
+# Obtain classification scores, including the confusion matrix.
+# @param predicts (array_like<str>): an array-like of predicted values.
+# @param labels (array_like<str>): an array-like of pre-labelled values.
+# @param clsNames (list<str>): a list of strings representing the names of the
+#   labelling classes.
+def getScores(predicts, labels, clsNames):
+    assert len(predicts) == len(labels)
+    numClasses = len(clsNames)
+
+    # Establish a mapping from clsNames to a number index.
+    clsMap = {}
+    for i, clsName in enumerate(clsNames):
+        clsMap[clsName] = i
+
+    # Build confusion matrix.
+    confMat = np.zeros(shape=(numClasses, numClasses), dtype=int)
+    for i, predict in enumerate(predicts):
+        label = labels[i]
+        confMat[clsMap[label], clsMap[predict]] += 1
+
+    # Calculate classification accuracy.
+    trace = np.trace(confMat)
+    sum = np.sum(confMat)
+    assert sum == len(predicts)
+    accu = 1.0 * trace / sum
+
+    # Print results
+    print "Classification accuracy:", accu
+    printConfMat(confMat, clsNames)
+
+
 # Extract the waveform name from its file PATH
 # wvpath is a string of form xx/xx/xxxx.h5
 # An example wavePath is "GT0577". Notice that the ".h5"

@@ -37,6 +37,7 @@ class Classifier:
         self.labelSet = labels
 
     # Convert an hp-enabled training set into a feature set and a label set.
+    # hp means plus polarization.
     def loadHpDat(self, fileName):
         trainSet = np.load(fileName)
         feats = []
@@ -263,7 +264,7 @@ def crossVal(k=5, nComps=None, dat=None):
         clf.imSet, clf.labelSet = \
             DataFactory.getTrainableArrays(dat)
     else:
-        clf.loadData("heavyTrainSet.npy")
+        clf.loadData("heavyTrainSet_DS_mass200.npy")
     # clf.loadData("heavyTrainSet_noDS.npy")
     # clf.loadHpDat("hpTrainSet.npy")
     endLoadTime = time.time()

@@ -30,14 +30,16 @@ DATA_PATH = "tfInstances.npy"
 ENTRY_WIDTH = 8
 
 
+# Represents a GUI object that helps to label whether or not
+# a time-frequency map has a double-chirp feature.
 class TfLabeller(object):
 	# submitAction is a callback function to be invoked
 	# on submitting a user label.
 	# It has a signature of submitAction(chirpNum, chirpTimes).
 	# nextAction is a function that will be invoked on skipping
 	# the current plot.
-	# @param waveform (str): An absolute path for the HDF5
-	#	waveform file. This absolute path can contain "..".
+	# @param waveform (str): An absolute PATH for the HDF5
+	#	waveform file. This absolute PATH can contain "..".
 	def __init__(self, waveform, iotaNum, phiNum, iotaStart,
 				 iotaEnd, phiStart, phiEnd):
 		assert path.isfile(waveform)
@@ -46,7 +48,7 @@ class TfLabeller(object):
 		self.win = tk.Tk()
 		self.win.title("TfLabeller")
 		# Waveform related attributes
-		# self.waveForm is the absolute path to the waveform file.
+		# self.waveForm is the absolute PATH to the waveform file.
 		self.waveform = waveform
 		# inputWaveName will only look like "GT0577".
 		self.waveName = utils.get_wvname(waveform)
@@ -417,7 +419,7 @@ class TfLabeller(object):
 
 
 if __name__ == "__main__":
-	waveform = "GT0453.h5"
+	waveform = "GT0664.h5"
 	waveform = path.join(WAVEFORM_DIR, waveform)
 	# It's fine to use int here because I have explicitly specified
 	# the dtype for linspace in the initiator to be float.

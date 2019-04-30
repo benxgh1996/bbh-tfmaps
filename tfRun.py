@@ -7,6 +7,7 @@ from TfMaker import TfMaker
 from Classifier import *
 import copy
 from skimage import filters
+import joblib
 
 
 # Saving a light-weight pickled training set into as a heavy
@@ -14,11 +15,12 @@ from skimage import filters
 def saveHeavyTrainingSet():
 	lightTrainSet = np.load("newTrainSet.npy")
 	# No Downsampling
-	tfMaker = TfMaker(numTimes=None, numFreqs=None, freqWindow=None,
-					  midTime=0.0, leftTimeWindow=-0.05,
-					  rightTimeWindow=0.03, downSample=False)
+	tfMaker = TfMaker()
+	# tfMaker = TfMaker(numTimes=None, numFreqs=None, freqWindow=None,
+	# 				  midTime=0.0, leftTimeWindow=-0.05,
+	# 				  rightTimeWindow=0.03, downSample=False)
 	DataFactory.saveTrainableData(lightTrainSet, tfMaker,
-								  "heavyTrainSet_noDS.npy")
+								  "heavyTrainSet_DS_mass200.npy")
 
 # Converting a legacy light-weight pickled training set into
 # an updated light-weight training set, and then save it.
@@ -469,12 +471,70 @@ def plotNoise():
 	plt.show()
 
 
+# Save a classifier model to disk.
+def saveClf():
+	clf = Classifier()
+	mass = 125
+	clf.loadData("heavyTrainSet_DS_mass{}.npy".format(mass))
+
+	# Extracting features.
+	nComps = 50
+	print "Extracting features from training data.."
+	startExtractTime = time.time()
+	percentVarCovered = clf.extractFeatsPCA(nComps)
+	print "Original Image Size:", clf.imSet[0].shape
+	print "Number of selected principal components:", nComps
+	print "Percentage of variance covered:", percentVarCovered
+	endExtractTime = time.time()
+	extractTime = endExtractTime - startExtractTime
+	print "Training data feature extraction time:", extractTime, "sec"
+	print
+
+	# Obtain classifier model and print the classification results on
+	# training data.
+	clf.model.fit(clf.featSet, clf.labelSet)
+	predicts = clf.model.predict(clf.featSet)
+	print "Classification results on training data (mass = {}):".format(mass)
+	getScores(predicts, clf.labelSet, ["Double Chirp", "Not Double Chirp"])
+
+	# Save model
+	joblib.dump(clf, "svm_mass{}.joblib".format(mass))
+
+
+def testClf():
+	clf = joblib.load("svm_mass125.joblib")
+	mock = Classifier()
+	mass = 200
+	mock.loadData("heavyTrainSet_DS_mass{}.npy".format(mass))
+
+	# Extracting features.
+	nComps = 50
+	print "Extracting features from training data.."
+	startExtractTime = time.time()
+	percentVarCovered = mock.extractFeatsPCA(nComps)
+	print "Original Image Size:", mock.imSet[0].shape
+	print "Number of selected principal components:", nComps
+	print "Percentage of variance covered:", percentVarCovered
+	endExtractTime = time.time()
+	extractTime = endExtractTime - startExtractTime
+	print "Training data feature extraction time:", extractTime, "sec"
+	print
+
+	# Get classification scores.
+	predicts = clf.model.predict(mock.featSet)
+	print "Classification results with mass {}:".format(mass)
+	getScores(predicts, mock.labelSet, ["Double Chirp", "Not Double Chirp"])
+
+
 if __name__ == "__main__":
 	# renewTrainSet()
 	# saveHeavyTrainingSet()
 	# saveHpTrainDat()
 	# trainNoise()
-	plotNoise()
+	# plotNoise()
 	# valNoise()
+	# saveClf()
+	testClf()
 	pass
+
 

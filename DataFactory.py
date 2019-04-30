@@ -213,7 +213,8 @@ class DataFactory(object):
 		tfData = copy.deepcopy(tfData)
 		wavePathDir = DataFactory.getWaveDirPath()
 		for idx, tfIns in enumerate(tfData, start=1):
-			print "Generating the {}st/{} TfInstance..".format(idx, numIns)
+			if idx % 20 == 0:
+				print "Generating the {}st/{} TfInstance..".format(idx, numIns)
 			assert tfIns.isLight()
 			assert tfIns.hasDoubleChirp is not None
 			ampArr, timeArr, freqArr = \
